@@ -9,23 +9,25 @@ import { Server } from "socket.io";
 import userRoutes from "./routes/userRoutes.js";
 import incidentRoutes from "./routes/incidentRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import teamRoutes from "./routes/teamRoutes.js";
 
 dotenv.config();
 connectDB();
 
 const app = express();
 
-// 🔥 create server using http
+//  create server using http
+//"This below line says Create an HTTP server,and whenever an HTTP request arrives,give that request to Express app"
 const server = http.createServer(app);
 
-// 🔥 attach socket
+//  attach socket
 const io = new Server(server, {
   cors: {
     origin: "*",
   },
 });
 
-// 🔥 store io globally
+//  store io globally
 app.set("io", io);
 
 // middleware
@@ -36,6 +38,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/incidents", incidentRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/teams", teamRoutes);
 
 // socket connection
 io.on("connection", (socket) => {
@@ -44,7 +47,7 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 5000;
 
-// ❗ use server.listen
+//  use server.listen.This is opened only one time then the request is again not being passed over here
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

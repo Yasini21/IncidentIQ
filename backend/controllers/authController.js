@@ -7,29 +7,24 @@ export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    console.log("REGISTER BODY:", req.body); // 🔥 debug
-
     const existingUser = await User.findOne({ email });
     if (existingUser)
       return res.status(400).json({ msg: "User already exists" });
 
-    // 🔥 HASH PASSWORD
+    //  HASH PASSWORD
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    console.log("HASHED:", hashedPassword); // 🔥 debug
 
     const newUser = await User.create({
       name,
       email,
-      password: hashedPassword, // 🔥 VERY IMPORTANT
+      password: hashedPassword,
+      role: "user",
     });
-
-    console.log("SAVED USER:", newUser); // 🔥 debug
 
     res.status(201).json({ msg: "User registered successfully" });
 
   } catch (err) {
-    console.log("REGISTER ERROR:", err);
+    console.error("REGISTER ERROR:", err.message);
     res.status(500).json({ msg: "Registration failed" });
   }
 };
@@ -37,28 +32,34 @@ export const register = async (req, res) => {
 /* LOGIN USER */
 export const login = async (req, res) => {
   try {
-    console.log("BODY:", req.body);
-
     const { email, password } = req.body;
 
     const user = await User.findOne({ email }).select("+password");
-    console.log("USER:", user);
 
     if (!user)
       return res.status(404).json({ msg: "User not found" });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    console.log("MATCH:", isMatch);
-
     if (!isMatch)
       return res.status(401).json({ msg: "Invalid credentials" });
 
-    console.log("SECRET:", process.env.JWT_SECRET); // 🔥 CHECK THIS
+    // Convert roles from users created before the Phase 1 role migration.
+    const roleMap = {
+      admin: "admin",
+      engineer: "developer",
+      viewer: "user",
+    };
+    const role = roleMap[user.role] || user.role;
+
+    if (role !== user.role) {
+      user.role = role;
+      await user.save();
+    }
 
     const token = jwt.sign(
       {
         id: user._id,
-        role: user.role,
+        role,
         email: user.email
       },
       process.env.JWT_SECRET,
@@ -70,13 +71,13 @@ export const login = async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
-        role: user.role
+        role
       },
       msg: "Login successful"
     });
 
   } catch (err) {
-    console.log("ERROR:", err); // 🔥 IMPORTANT
+    console.error("LOGIN ERROR:", err.message);
     res.status(500).json({ msg: "Login failed" });
   }
 };

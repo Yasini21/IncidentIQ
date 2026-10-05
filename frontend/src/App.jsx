@@ -1,7 +1,7 @@
 import Layout from "./components/Layout";
 import DashboardPage from "./pages/DashboardPage";
 import AdminDashboard from "./pages/AdminDashboard";
-import EngineerDashboard from "./pages/EngineerDashboard";
+import DeveloperDashboard from "./pages/DeveloperDashboard";
 import AnalyticsPage from "./pages/AnalyticsPage";
 
 
@@ -16,6 +16,16 @@ import { Routes, Route, Navigate } from "react-router-dom";
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem("token");
   return token ? children : <Navigate to="/login" />;
+};
+
+const RoleRoute = ({ role, children }) => {
+  const currentRole = localStorage.getItem("role");
+
+  if (currentRole !== role) {
+    return <Navigate to={currentRole === "admin" ? "/admin" : "/"} replace />;
+  }
+
+  return children;
 };
 
 function App() {
@@ -43,9 +53,11 @@ function App() {
   path="/analytics"
   element={
     <ProtectedRoute>
-      <Layout>
-        <AnalyticsPage />
-      </Layout>
+            <RoleRoute role="admin">
+              <Layout>
+                <AnalyticsPage />
+              </Layout>
+            </RoleRoute>
     </ProtectedRoute>
   }
 />
@@ -53,20 +65,24 @@ function App() {
          path="/admin"
          element={
        <ProtectedRoute>
-      <Layout>
-        <AdminDashboard />
-      </Layout>
+        <RoleRoute role="admin">
+          <Layout>
+            <AdminDashboard />
+          </Layout>
+        </RoleRoute>
     </ProtectedRoute>
   }
 />
      
 <Route
-  path="/engineer"
+  path="/developer"
   element={
     <ProtectedRoute>
-      <Layout>
-        <EngineerDashboard />
-      </Layout>
+      <RoleRoute role="developer">
+        <Layout>
+          <DeveloperDashboard />
+        </Layout>
+      </RoleRoute>
     </ProtectedRoute>
   }
 />

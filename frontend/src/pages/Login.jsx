@@ -99,8 +99,8 @@ const Login = () => {
 
               if (role === "admin") {
              navigate("/admin");
-             } else if (role === "engineer") {
-              navigate("/engineer");
+              } else if (role === "developer") {
+              navigate("/developer");
             } else {
            navigate("/");
             }

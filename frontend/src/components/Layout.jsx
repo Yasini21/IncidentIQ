@@ -21,17 +21,44 @@ function Layout({ children }) {
 
   const isActive = (path) => location.pathname === path;
 
+  const navigation = role === "admin"
+    ? [
+        { label: "Dashboard", path: "/", icon: "▦" },
+        { label: "Incidents", path: "/admin", icon: "◈" },
+        { label: "Teams", path: "/admin#teams", icon: "⌘" },
+        { label: "Users", path: "/admin#users", icon: "◉" },
+        { label: "Analytics", path: "/analytics", icon: "⌁" },
+      ]
+    : role === "developer"
+      ? [
+          { label: "Dashboard", path: "/", icon: "▦" },
+          { label: "Team Incidents", path: "/developer", icon: "◈" },
+        ]
+      : [
+          { label: "Dashboard", path: "/", icon: "▦" },
+          { label: "Report Incident", path: "/create", icon: "+" },
+          { label: "My Incidents", path: "/", icon: "◈" },
+        ];
+
   useEffect(() => {
-    socket.on("newIncident", (data) => {
-      setNotifications((prev) => [data, ...prev]);
-      toast.success(`New Incident: ${data.title}`);
+    socket.on("newIncident", () => {
+      if (role === "user") {
+        return;
+      }
+
+      const message = "A new incident was reported";
+      setNotifications((previousNotifications) => [
+        message,
+        ...previousNotifications,
+      ]);
+      toast.success(message);
     });
 
     return () => socket.off("newIncident");
-  }, []);
+  }, [role]);
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-slate-50">
 
       {/* MOBILE OVERLAY */}
       {open && (
@@ -42,111 +69,91 @@ function Layout({ children }) {
       )}
 
       {/* SIDEBAR */}
-      <div
-        className={`fixed md:static z-50 w-64 bg-white border-r border-gray-200 h-full p-5 transform transition-transform duration-300
+      <aside
+        className={`fixed md:sticky top-0 z-50 flex h-screen w-72 shrink-0 flex-col bg-[#0b1730] p-5 text-white shadow-xl transform transition-transform duration-300
         ${open ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
-        <h2 className="text-2xl font-bold mb-8 text-blue-600">
-          🚀 IncidentAI
-        </h2>
+        <div className="flex items-center gap-3 border-b border-white/10 pb-6">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 font-black text-lg shadow-lg shadow-blue-950/40">IQ</div>
+          <div>
+            <h2 className="text-lg font-bold tracking-tight">IncidentIQ</h2>
+            <p className="text-xs text-slate-400">Operations console</p>
+          </div>
+        </div>
 
-        <ul className="space-y-2">
+        <div className="mt-8 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Workspace</div>
+        <nav className="mt-3 space-y-1">
+          {navigation.map((item) => {
+            const active = item.path.includes("#")
+              ? location.pathname === item.path.split("#")[0]
+              : isActive(item.path);
+            return (
+              <Link key={item.label} to={item.path} onClick={() => setOpen(false)} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-blue-500 text-white shadow-lg shadow-blue-950/30" : "text-slate-300 hover:bg-white/10 hover:text-white"}`}>
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-base">{item.icon}</span>
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
 
-          <Link to="/">
-            <li className={`p-2 rounded-md ${
-              isActive("/")
-                ? "bg-blue-50 text-blue-600 font-semibold"
-                : "text-gray-600 hover:bg-gray-100"
-            }`}>
-              📊 Dashboard
-            </li>
-          </Link>
-
-          {role === "admin" && (
-            <Link to="/analytics">
-              <li className={`p-2 rounded-md ${
-                isActive("/analytics")
-                  ? "bg-blue-50 text-blue-600 font-semibold"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}>
-                📈 Analytics
-              </li>
-            </Link>
-          )}
-
-          {(role === "engineer" || role === "admin") && (
-            <>
-              <li className="text-xs text-gray-400 mt-4 uppercase">
-                Engineer Tools
-              </li>
-              <li className="text-gray-500 text-sm">
-                ✔ Resolve Incidents
-              </li>
-            </>
-          )}
-
-          {role === "viewer" && (
-            <>
-              <li className="text-xs text-gray-400 mt-4 uppercase">
-                Your Activity
-              </li>
-              <li className="text-gray-500 text-sm">
-                ✔ Track Requests
-              </li>
-            </>
-          )}
-
-        </ul>
-      </div>
+        <div className="mt-auto rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs font-semibold text-slate-400">Signed in as</p>
+          <p className="mt-1 truncate text-sm font-semibold text-white">{localStorage.getItem("userName") || "IncidentIQ user"}</p>
+          <p className="mt-1 text-xs capitalize text-blue-300">{role || "user"} account</p>
+        </div>
+      </aside>
 
       {/* MAIN */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
 
         {/* HEADER */}
-        <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 sm:px-8">
 
           <div className="flex items-center gap-3">
             <button
-              className="md:hidden text-xl"
+              className="rounded-lg p-2 text-xl text-slate-600 hover:bg-slate-100 md:hidden"
               onClick={() => setOpen(true)}
             >
               ☰
             </button>
 
-            <h1 className="font-semibold text-gray-800">
-              Incident Management
-            </h1>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">IncidentIQ</p>
+              <h1 className="text-lg font-bold text-slate-900 sm:text-xl">
+                Incident management
+              </h1>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
 
             {/* Notifications */}
             <div className="relative">
               <button
                 onClick={() => setShowNotif(!showNotif)}
-                className="text-xl relative"
+                className="relative rounded-lg p-2 text-lg hover:bg-slate-100"
               >
                 🔔
 
                 {notifications.length > 0 && (
-                  <span className="absolute -top-1 -right-2 bg-red-500 text-white text-xs px-1 rounded-full">
+                    <span className="absolute -right-1 -top-1 rounded-full bg-rose-500 px-1.5 text-xs text-white">
                     {notifications.length}
                   </span>
                 )}
               </button>
 
               {showNotif && (
-                <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 shadow-lg rounded-md p-3 z-50">
-                  <h4 className="font-semibold mb-2">Notifications</h4>
+                <div className="absolute right-0 z-50 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-3 text-slate-800 shadow-xl">
+                  <h4 className="mb-2 font-semibold">Notifications</h4>
 
                   {notifications.length === 0 ? (
                     <p className="text-sm text-gray-500">
                       No notifications
                     </p>
                   ) : (
-                    notifications.map((n, i) => (
-                      <div key={i} className="text-sm border-b py-1">
-                        🚨 {n.title}
+                    notifications.map((notification, index) => (
+                      <div key={index} className="border-b border-slate-100 py-1 text-sm">
+                        🚨 {notification}
                       </div>
                     ))
                   )}
@@ -155,25 +162,25 @@ function Layout({ children }) {
             </div>
 
             {/* ROLE */}
-            <span className="text-xs px-3 py-1 bg-gray-100 rounded-full text-gray-700">
-              👤 {role?.toUpperCase()}
+            <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-600 sm:inline-flex">
+              {role || "user"}
             </span>
 
             {/* LOGOUT */}
             <button
               onClick={handleLogout}
-              className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition"
+              className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 sm:text-sm"
             >
               Logout
             </button>
 
           </div>
-        </div>
+        </header>
 
         {/* CONTENT */}
-        <div className="p-6 overflow-y-auto flex-1">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8">
           {children}
-        </div>
+        </main>
 
       </div>
     </div>

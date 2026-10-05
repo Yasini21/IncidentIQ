@@ -6,6 +6,7 @@ import {
   getIncidents,
   getIncidentById,
   updateIncidentStatus,
+  assignIncidentTeam,
   deleteIncident,
   getAnalytics,
 } from "../controllers/incidentController.js";
@@ -13,35 +14,42 @@ import {
 import { verifyToken } from "../middleware/authMiddleware.js";
 import { allowRoles } from "../middleware/roleMiddleware.js";
 
-// 🔹 Create incident → ADMIN only
-router.post("/", verifyToken, allowRoles("admin","viewer"), createIncident);
+//  Create incident → ADMIN or USER
+router.post("/", verifyToken, allowRoles("admin", "user"), createIncident);
 
-// 🔹 View all → ALL roles
+//  View all → ALL roles
 router.get(
   "/",
   verifyToken,
-  allowRoles("admin", "engineer", "viewer"),
+  allowRoles("admin", "developer", "user"),
   getIncidents
 );
 
-// 🔹 View one → ALL roles
+router.get("/analytics", verifyToken, allowRoles("admin"), getAnalytics);
+
+//  View one → ALL roles
 router.get(
   "/:id",
   verifyToken,
-  allowRoles("admin", "engineer", "viewer"),
+  allowRoles("admin", "developer", "user"),
   getIncidentById
 );
-router.get("/analytics", verifyToken, getAnalytics);
-
-// 🔹 Update status → ENGINEER + ADMIN
+//  Update status → DEVELOPER + ADMIN
 router.patch(
   "/:id",
   verifyToken,
-  allowRoles("admin", "engineer"),
+  allowRoles("admin", "developer"),
   updateIncidentStatus
 );
 
-// 🔹 Delete → ADMIN only
+router.patch(
+  "/:id/team",
+  verifyToken,
+  allowRoles("admin"),
+  assignIncidentTeam
+);
+
+//  Delete → ADMIN only
 router.delete(
   "/:id",
   verifyToken,

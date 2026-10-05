@@ -6,19 +6,19 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// 🔗 connect DB
+//  connect DB
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("DB connected (Worker)"))
   .catch(err => console.log(err));
 
-// 🔗 Redis connection
+//  Redis connection
 const connection = new IORedis({
   host: "127.0.0.1",
   port: 6379,
-  maxRetriesPerRequest: null, // ✅ FIX
+  maxRetriesPerRequest: null, 
 });
 
-// 👨‍🍳 Worker
+//  Worker
 const worker = new Worker(
   "incidentQueue",
   async (job) => {
@@ -29,7 +29,7 @@ const worker = new Worker(
     const incident = await Incident.findById(incidentId);
     if (!incident) return;
 
-    // 🧠 Fake analysis (business logic)
+    //  Fake analysis (business logic)
     let analysis = "";
     let suggestion = "";
 
@@ -49,7 +49,7 @@ const worker = new Worker(
       suggestion = "Check logs manually";
     }
 
-    // 💾 update DB
+    // update DB
     incident.analysis = analysis;
     incident.suggestion = suggestion;
 

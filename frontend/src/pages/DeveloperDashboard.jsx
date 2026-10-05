@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 
-const EngineerDashboard = () => {
+const DeveloperDashboard = () => {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingId, setLoadingId] = useState(null);
@@ -60,19 +60,23 @@ const EngineerDashboard = () => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
 
       {/* HEADER */}
-      <h2 className="text-xl font-bold">👨‍💻 Engineer Dashboard</h2>
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600">Developer workspace</p>
+        <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Team incidents</h2>
+        <p className="mt-1 text-sm text-slate-500">Your team&apos;s active incident queue will appear here.</p>
+      </div>
 
       {/* CONTENT */}
-      <div className="bg-white rounded-xl shadow p-5">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
 
         {loading ? (
           <p className="text-gray-500">Loading incidents...</p>
         ) : activeIncidents.length === 0 ? (
-          <p className="text-gray-500 text-center">
-            🎉 No active incidents — all systems stable!
+            <p className="py-8 text-center text-sm text-slate-500">
+            No active incidents. All systems stable.
           </p>
         ) : (
           <div className="space-y-4">
@@ -155,4 +159,4 @@ const EngineerDashboard = () => {
   );
 };
 
-export default EngineerDashboard;
+export default DeveloperDashboard;

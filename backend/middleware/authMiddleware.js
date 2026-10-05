@@ -15,6 +15,14 @@ export const verifyToken = (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // Accept tokens issued before the Phase 1 role migration until they expire.
+    const roleMap = {
+      admin: "admin",
+      engineer: "developer",
+      viewer: "user",
+    };
+    decoded.role = roleMap[decoded.role] || decoded.role;
+
     req.user = decoded; // { id, role, email }
     next();
 

@@ -1,24 +1,37 @@
+import mongoose from "mongoose";
 import Incident from "../models/Incident.js";
+import Team from "../models/Team.js";
 import { incidentQueue } from "../queue/incidentQueue.js";
 
 // CREATE INCIDENT
 export const createIncident = async (req, res) => {
   try {
-    console.log("BODY:", req.body); // 🔥 ADD THIS
-
-    const incident = await Incident.create(req.body);
+    const { title, description, service, logs } = req.body;
+    const incident = await Incident.create({
+      title,
+      description,
+      service,
+      logs,
+      reportedBy: req.user.id,
+      status: "OPEN",
+      assignedTeam: null,
+      resolution: null,
+    });
     await incidentQueue.add("analyzeIncident", {
         incidentId: incident._id,
     });
 
-    console.log("CREATED:", incident); // 🔥 ADD THIS
+    await incident.populate([
+      { path: "reportedBy", select: "name" },
+      { path: "assignedTeam", select: "name" },
+    ]);
 
     const io = req.app.get("io");
-    io.emit("newIncident", incident);
+    io.emit("newIncident");
 
     res.status(201).json(incident);
   } catch (error) {
-    console.log("CREATE ERROR:", error); // 🔥 ADD THIS
+    console.log("CREATE ERROR:", error); 
     res.status(500).json({ message: error.message });
   }
 };
@@ -26,7 +39,18 @@ export const createIncident = async (req, res) => {
 // GET ALL INCIDENTS
 export const getIncidents = async (req, res) => {
   try {
-    const incidents = await Incident.find().sort({ createdAt: -1 });
+    const filter =
+      req.user.role === "user" ? { reportedBy: req.user.id } : {};
+    let incidentsQuery = Incident.find(filter);
+    if (req.user.role === "user") {
+      incidentsQuery = incidentsQuery.select(
+        "title description service severity status reportedBy assignedTeam resolution createdAt updatedAt"
+      );
+    }
+    const incidents = await incidentsQuery
+      .populate("reportedBy", "name")
+      .populate("assignedTeam", "name")
+      .sort({ createdAt: -1 });
     res.json(incidents);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -36,11 +60,31 @@ export const getIncidents = async (req, res) => {
 // GET SINGLE INCIDENT
 export const getIncidentById = async (req, res) => {
   try {
-    const incident = await Incident.findById(req.params.id);
+    let incidentQuery = Incident.findById(req.params.id);
+    if (req.user.role === "user") {
+      incidentQuery = incidentQuery.select(
+        "title description service severity status reportedBy assignedTeam resolution createdAt updatedAt"
+      );
+    }
+    const incident = await incidentQuery;
 
     if (!incident) {
       return res.status(404).json({ message: "Incident not found" });
     }
+
+    if (
+      req.user.role === "user" &&
+      incident.reportedBy.toString() !== req.user.id
+    ) {
+      return res.status(403).json({
+        message: "You are not authorized to view this incident.",
+      });
+    }
+
+    await incident.populate([
+      { path: "reportedBy", select: "name" },
+      { path: "assignedTeam", select: "name" },
+    ]);
 
     res.json(incident);
   } catch (error) {
@@ -51,14 +95,83 @@ export const getIncidentById = async (req, res) => {
 // UPDATE STATUS
 export const updateIncidentStatus = async (req, res) => {
   try {
+    const updates = {};
+    if (req.body.status) updates.status = req.body.status;
+    if (req.body.severity) updates.severity = req.body.severity;
+
     const incident = await Incident.findByIdAndUpdate(
       req.params.id,
-      { status: req.body.status },
-      { new: true }
-    );
+      updates,
+      { new: true, runValidators: true }
+    )
+      .populate("reportedBy", "name")
+      .populate("assignedTeam", "name");
+
+    if (!incident) {
+      return res.status(404).json({ message: "Incident not found" });
+    }
 
     const io = req.app.get("io");
-    io.emit("incidentUpdated", incident); // 🔥 added
+    io.emit("incidentUpdated", incident); 
+
+    res.json(incident);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const assignIncidentTeam = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Access denied: only admin can assign teams" });
+    }
+
+    const { teamId } = req.body;
+
+    if (teamId === undefined) {
+      return res.status(400).json({ message: "teamId is required" });
+    }
+
+    const incident = await Incident.findById(req.params.id);
+
+    if (!incident) {
+      return res.status(404).json({ message: "Incident not found" });
+    }
+
+    if (teamId === null) {
+      incident.assignedTeam = null;
+      await incident.save();
+
+      await incident.populate([
+        { path: "reportedBy", select: "name" },
+        { path: "assignedTeam", select: "name" },
+      ]);
+
+      const io = req.app.get("io");
+      io.emit("incidentUpdated", incident);
+      return res.json(incident);
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(teamId)) {
+      return res.status(400).json({ message: "Invalid teamId" });
+    }
+
+    const team = await Team.findById(teamId);
+
+    if (!team) {
+      return res.status(404).json({ message: "Team not found" });
+    }
+
+    incident.assignedTeam = team._id;
+    await incident.save();
+
+    await incident.populate([
+      { path: "reportedBy", select: "name" },
+      { path: "assignedTeam", select: "name" },
+    ]);
+
+    const io = req.app.get("io");
+    io.emit("incidentUpdated", incident);
 
     res.json(incident);
   } catch (error) {
@@ -107,20 +220,23 @@ export const getAnalytics = async (req, res) => {
     const total = await Incident.countDocuments();
 
     const open = await Incident.countDocuments({ status: "OPEN" });
+    const inProgress = await Incident.countDocuments({ status: "IN_PROGRESS" });
     const resolved = await Incident.countDocuments({ status: "RESOLVED" });
 
-    // 🔥 Severity counts
-    const low = await Incident.countDocuments({ severity: "LOW" });
-    const medium = await Incident.countDocuments({ severity: "MEDIUM" });
-    const high = await Incident.countDocuments({ severity: "HIGH" });
+    const p1 = await Incident.countDocuments({ severity: "P1" });
+    const p2 = await Incident.countDocuments({ severity: "P2" });
+    const p3 = await Incident.countDocuments({ severity: "P3" });
+    const p4 = await Incident.countDocuments({ severity: "P4" });
 
     res.json({
       total,
       open,
+      inProgress,
       resolved,
-      low,
-      medium,
-      high,
+      p1,
+      p2,
+      p3,
+      p4,
     });
 
   } catch (err) {

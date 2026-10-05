@@ -20,12 +20,17 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       minlength: 6,
-      select: false // 🔥 hide password
+      select: false // hide password
     },
     role: {
       type: String,
-      enum: ["admin", "engineer", "viewer"],
-      default: "viewer"
+      enum: ["admin", "developer", "user"],
+      default: "user"
+    },
+    team: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Team",
+      default: null
     }
   },
   { timestamps: true }

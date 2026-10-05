@@ -19,14 +19,15 @@ const AnalyticsPage = () => {
   //  Pie Chart data
   const chartData = [
     { name: "Open", value: data.open || 0 },
+    { name: "In progress", value: data.inProgress || 0 },
     { name: "Resolved", value: data.resolved || 0 },
   ];
 
-  // Bar Chart data (NEW)
   const severityData = [
-    { name: "LOW", value: data.low || 0 },
-    { name: "MEDIUM", value: data.medium || 0 },
-    { name: "HIGH", value: data.high || 0 },
+    { name: "P1", value: data.p1 || 0 },
+    { name: "P2", value: data.p2 || 0 },
+    { name: "P3", value: data.p3 || 0 },
+    { name: "P4", value: data.p4 || 0 },
   ];
 
   const fetchAnalytics = async () => {
@@ -72,9 +73,9 @@ const AnalyticsPage = () => {
         </div>
 
         <div className="bg-white p-4 rounded shadow text-center">
-          <p>High</p>
+          <p>P1</p>
           <h2 className="text-xl font-bold text-yellow-600">
-            {data.high || 0}
+            {data.p1 || 0}
           </h2>
         </div>
 
