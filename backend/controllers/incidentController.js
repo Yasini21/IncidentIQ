@@ -39,8 +39,16 @@ export const createIncident = async (req, res) => {
 // GET ALL INCIDENTS
 export const getIncidents = async (req, res) => {
   try {
-    const filter =
-      req.user.role === "user" ? { reportedBy: req.user.id } : {};
+    let filter = {};
+    if (req.user.role === "user") {
+      filter = { reportedBy: req.user.id };
+    } else if (req.user.role === "developer") {
+      if (!req.user.team) {
+        return res.json([]);
+      }
+      filter = { assignedTeam: req.user.team };
+    }
+
     let incidentsQuery = Incident.find(filter);
     if (req.user.role === "user") {
       incidentsQuery = incidentsQuery.select(
@@ -81,6 +89,16 @@ export const getIncidentById = async (req, res) => {
       });
     }
 
+    if (
+      req.user.role === "developer" &&
+      (!req.user.team ||
+        incident.assignedTeam?.toString() !== req.user.team.toString())
+    ) {
+      return res.status(403).json({
+        message: "You are not authorized to view this incident.",
+      });
+    }
+
     await incident.populate([
       { path: "reportedBy", select: "name" },
       { path: "assignedTeam", select: "name" },
@@ -95,24 +113,94 @@ export const getIncidentById = async (req, res) => {
 // UPDATE STATUS
 export const updateIncidentStatus = async (req, res) => {
   try {
-    const updates = {};
-    if (req.body.status) updates.status = req.body.status;
-    if (req.body.severity) updates.severity = req.body.severity;
+    if (req.user.role === "admin") {
+      const updates = {};
+      if (req.body.status) updates.status = req.body.status;
+      if (req.body.severity) updates.severity = req.body.severity;
 
-    const incident = await Incident.findByIdAndUpdate(
-      req.params.id,
-      updates,
-      { new: true, runValidators: true }
-    )
-      .populate("reportedBy", "name")
-      .populate("assignedTeam", "name");
+      const incident = await Incident.findByIdAndUpdate(
+        req.params.id,
+        updates,
+        { new: true, runValidators: true }
+      )
+        .populate("reportedBy", "name")
+        .populate("assignedTeam", "name");
+
+      if (!incident) {
+        return res.status(404).json({ message: "Incident not found" });
+      }
+
+      const io = req.app.get("io");
+      io.emit("incidentUpdated", incident);
+      return res.json(incident);
+    }
+
+    const incident = await Incident.findById(req.params.id);
 
     if (!incident) {
       return res.status(404).json({ message: "Incident not found" });
     }
 
+    if (
+      !req.user.team ||
+      incident.assignedTeam?.toString() !== req.user.team.toString()
+    ) {
+      return res.status(403).json({
+        message: "You are not authorized to update this incident.",
+      });
+    }
+
+    const body = req.body || {};
+    const unsupportedFields = Object.keys(body).filter(
+      (field) => !["status", "resolution"].includes(field)
+    );
+    if (unsupportedFields.length > 0) {
+      return res.status(400).json({
+        message: "Developers can update only status and resolution.",
+      });
+    }
+
+    if (
+      Object.hasOwn(body, "status") &&
+      !["OPEN", "IN_PROGRESS", "RESOLVED"].includes(body.status)
+    ) {
+      return res.status(400).json({ message: "Invalid incident status." });
+    }
+
+    if (
+      Object.hasOwn(body, "resolution") &&
+      body.resolution !== null &&
+      typeof body.resolution !== "string"
+    ) {
+      return res.status(400).json({
+        message: "Resolution must be text or null.",
+      });
+    }
+
+    const resolution = Object.hasOwn(body, "resolution")
+      ? body.resolution?.trim() || null
+      : incident.resolution?.trim() || null;
+    const status = Object.hasOwn(body, "status")
+      ? body.status
+      : incident.status;
+
+    if (status === "RESOLVED" && !resolution) {
+      return res.status(400).json({
+        message: "A resolution is required when resolving an incident.",
+      });
+    }
+
+    if (Object.hasOwn(body, "status")) incident.status = body.status;
+    if (Object.hasOwn(body, "resolution")) incident.resolution = resolution;
+
+    await incident.save();
+    await incident.populate([
+      { path: "reportedBy", select: "name" },
+      { path: "assignedTeam", select: "name" },
+    ]);
+
     const io = req.app.get("io");
-    io.emit("incidentUpdated", incident); 
+    io.emit("incidentUpdated", incident);
 
     res.json(incident);
   } catch (error) {
