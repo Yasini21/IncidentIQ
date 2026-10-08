@@ -6,56 +6,62 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-//  connect DB
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("DB connected (Worker)"))
-  .catch(err => console.log(err));
+await mongoose.connect(process.env.MONGO_URI);
+console.log("DB connected (Worker)");
 
-//  Redis connection
 const connection = new IORedis({
   host: "127.0.0.1",
   port: 6379,
-  maxRetriesPerRequest: null, 
+  maxRetriesPerRequest: null,
 });
 
-//  Worker
 const worker = new Worker(
   "incidentQueue",
   async (job) => {
-    console.log("🔥 Job received:", job.data);
-
     const { incidentId } = job.data;
 
-    const incident = await Incident.findById(incidentId);
-    if (!incident) return;
+    try {
+      console.log("Job received:", job.data);
+      //For testing whether retry works
+      // throw new Error("TEST RETRY");
+      const incident = await Incident.findById(incidentId);
+      if (!incident) {
+        throw new Error(`Incident not found: ${incidentId}`);
+      }
 
-    //  Fake analysis (business logic)
-    let analysis = "";
-    let suggestion = "";
+      let analysis = "";
+      let suggestion = "";
 
-    const title = incident.title.toLowerCase();
+      const title = incident.title.toLowerCase();
 
-    if (title.includes("server")) {
-      analysis = "Possible server overload";
-      suggestion = "Restart server";
-    } else if (title.includes("database")) {
-      analysis = "Database connection issue";
-      suggestion = "Check DB service";
-    } else if (title.includes("login")) {
-      analysis = "Authentication issue";
-      suggestion = "Check auth service";
-    } else {
-      analysis = "General issue detected";
-      suggestion = "Check logs manually";
+      if (title.includes("server")) {
+        analysis = "Possible server overload";
+        suggestion = "Restart server";
+      } else if (title.includes("database")) {
+        analysis = "Database connection issue";
+        suggestion = "Check DB service";
+      } else if (title.includes("login")) {
+        analysis = "Authentication issue";
+        suggestion = "Check auth service";
+      } else {
+        analysis = "General issue detected";
+        suggestion = "Check logs manually";
+      }
+
+      incident.analysis = analysis;
+      incident.suggestion = suggestion;
+
+      await incident.save();
+
+      console.log("Incident updated:", incident._id);
+    } catch (error) {
+      console.error("Incident job failed:", {
+        jobId: job.id,
+        incidentId,
+        error,
+      });
+      throw error;
     }
-
-    // update DB
-    incident.analysis = analysis;
-    incident.suggestion = suggestion;
-
-    await incident.save();
-
-    console.log(" Incident updated:", incident._id);
   },
   { connection }
 );
